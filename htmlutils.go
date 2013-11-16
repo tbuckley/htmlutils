@@ -1,7 +1,9 @@
 package htmlutils
 
 import (
+	"bytes"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 
@@ -18,7 +20,7 @@ func (q *Query) At(i int) *html.Node {
 	return q.set[i]
 }
 
-func NewQuery(page *url.URL) (*Query, error) {
+func FetchPage(page *url.URL) ([]byte, error) {
 	client := http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return fmt.Errorf("Detected redirect, skipping")
@@ -29,11 +31,23 @@ func NewQuery(page *url.URL) (*Query, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	doc, err := html.Parse(resp.Body)
+	return ioutil.ReadAll(resp.Body)
+}
+
+func NewQueryFromPage(body []byte) (*Query, error) {
+	doc, err := html.Parse(bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
 	return &Query{[]*html.Node{doc}}, nil
+}
+
+func NewQuery(page *url.URL) (*Query, error) {
+	body, err := FetchPage(page)
+	if err != nil {
+		return nil, err
+	}
+	return NewQueryFromPage(body)
 }
 
 func (q *Query) Each(fn ElementHandler) {
